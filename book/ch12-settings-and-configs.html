@@ -15,9 +15,13 @@
   </head>
   <body>
     <nav>
+      <h3>Chapters</h3>
+      <ul id="chapters"><a href="ch00-foreword.html" class="h2">ch00 - foreword</a><a href="ch01-introduction.html" class="h2">ch01 - introduction</a><a href="ch02-the-big-decision.html" class="h2">ch02 - the big decision</a><a href="ch03-code-for-humans.html" class="h2">ch03 - code for humans</a><a href="ch04-organizing-your-code.html" class="h2">ch04 - organizing your code</a><a href="ch05-eventification.html" class="h2">ch05 - eventification</a><a href="ch06-models.html" class="h2">ch06 - models</a><a href="ch07-views.html" class="h2">ch07 - views</a><a href="ch08-templating.html" class="h2">ch08 - templating</a><a href="ch09-clientside-routing.html" class="h2">ch09 - clientside routing</a><a href="ch10-launch-sequence.html" class="h2">ch10 - launch sequence</a><a href="ch11-testing-and-qa-that-doesnt-suck.html" class="h2">ch11 - testing and QA that doesnt suck</a><a href="ch12-settings-and-configs.html" class="h2">ch12 - settings and configs</a><a href="ch13-caveats.html" class="h2">ch13 - caveats</a><a href="ch14-conclusion.html" class="h2">ch14 - conclusion</a>
+      </ul>
       <div id="slider"></div>
     </nav>
-    <main><h1>App settings and configuration</h1>
+    <main>
+      <h1 class="humanjs">HumanJS</h1><h1>App settings and configuration</h1>
 <h2>The problem</h2>
 <p>App configuration and environment settings are always a PITA, right? Especially when you&apos;ve got configuration settings you want to pass to your single page app. If we&apos;ve structured everything as building a &quot;static&quot; js file that gets sent, then how do we pass dynamic values into it for things like configuration?
 
@@ -112,7 +116,8 @@ app.get(&apos;/app&apos;, configMiddleware, function (req, res) {
 <h2>Security caveats</h2>
 <p>Please avoid if sending any valuable settings across the wire this way, especially if you&apos;re not using https. Cookies are just http headers, so it&apos;s best to assume that this is not secure information and thus, should only be used for non-sensitive data.
 </p>
-</main>
+
+    </main>
     <footer><span class="prev"><a href="/book/ch11-testing-and-qa-that-doesnt-suck.html">ch11 - testing and QA that doesnt suck</a></span><span class="next"><a href="/book/ch13-caveats.html">ch13 - caveats</a></span>
     </footer>
   </body>

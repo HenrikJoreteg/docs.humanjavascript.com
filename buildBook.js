@@ -21,7 +21,11 @@ fs.mkdirSync(buildDir);
 files = files.filter(function (fileName) {
     return fileName.slice(0, 2) === 'ch';
 }).map(function (fileName) {
-    return fileName.slice(0, -3);
+    var trimmed = fileName.slice(0, -3);
+    return {
+        name: trimmed,
+        url: getUrlForFileName(trimmed)
+    };
 });
 
 function sluggify(name) {
@@ -30,28 +34,36 @@ function sluggify(name) {
 
 function getUrlForFileName(fileName) {
     if (!fileName) return;
-    return '<a href="/book/' + sluggify(fileName) + '.html">' + fileName + '</a>';
+    return sluggify(fileName) + '.html';
 }
 
-async.forEach(files, function (fileName, cb) {
-    var html = marked(fs.readFileSync(bookSrcDir + '/' + fileName + '.md', {encoding: 'utf8'}));
-    var index = files.indexOf(fileName);
-    var prevLink = getUrlForFileName(index !== 0 && files[index - 1]);
-    var nextLink = getUrlForFileName(files[index + 1]);
+function getAnchor(file) {
+    if (!file) return;
+    return '<a href="/book/' + file.url + '">' + file.name + '</a>';
+}
+
+async.forEach(files, function (file, cb) {
+    var html = marked(fs.readFileSync(bookSrcDir + '/' + file.name + '.md', {encoding: 'utf8'}));
+    var index = files.indexOf(file);
+    var prevLink = getAnchor(files[index - 1]);
+    var nextLink = getAnchor(files[index + 1]);
     var template = [
         'extends ../bookLayout',
         '',
         'block title',
-        '  title Human JavaScript: ' + fileName
+        '  title Human JavaScript: ' + file.name
     ].join('\n');
+
+    console.log(nextLink, prevLink);
 
     jade.render(template, {
         pretty: true,
-        filename: buildDir + '/' + fileName + '.jade',
+        filename: buildDir + '/' + file.name + '.jade',
         nextLink: nextLink,
-        prevLink: prevLink
+        prevLink: prevLink,
+        chapters: files
     }, function (err, code) {
         if (err) throw err;
-        fs.writeFileSync(buildDir + '/' + sluggify(fileName) + '.html', code.replace('<main>', '<main>' + html), {encoding: 'utf8'});
+        fs.writeFileSync(buildDir + '/' + sluggify(file.name) + '.html', code.replace('<br>', html), {encoding: 'utf8'});
     });
 });

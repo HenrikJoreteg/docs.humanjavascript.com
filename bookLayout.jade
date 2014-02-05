@@ -13,9 +13,20 @@ html
         block title
     body
       nav
+        h3 Chapters
+
+        ul#chapters
+          each chapter in chapters
+            a.h2(href= chapter.url)= chapter.name
+
         #slider 
 
+
+      
       main
+        h1.humanjs HumanJS
+        //- the <br> gets replaced with the content
+        br
 
       footer
         - if (locals.prevLink)
