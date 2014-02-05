@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link type="text/css" rel="stylesheet" href="/static/css/main.css">
+    <link type="text/css" rel="stylesheet" href="/static/css/&amp;yet-highlight.css">
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+      ga('create', 'UA-44685415-1', 'humanjavascript.com');
+      ga('send', 'pageview');
+    </script>
+    <title>Human JavaScript: ch07 - views</title>
+  </head>
+  <body>
+    <nav>
+      <div id="slider"></div>
+    </nav>
+    <main><h1>Views</h1>
+<p>In the interest of being terribly cliché, views are where the rubber hits the road. It&apos;s where your model layer meets the DOM.
+
+</p>
+<p>Before we get into the details, let&apos;s talk a bit about why I believe views are a great pattern. The main thing they give us is a clean way to encapsulate and store all the logic for how your application interacts with the DOM. In fact, it&apos;s even more specific than that; we use them to contain all the logic for a <em>certain element</em> within the DOM. Each view is responsible for the content, event handling, and updating of a single element and the event handlers in views translate user actions into changes to models.
+
+</p>
+<p>As I&apos;ve already alluded to in previous chapters, separating application models and views buys us a <em>lot</em> of flexibility. We can change the layout and HTML structure of the whole app without having to change anything about how the app gets, stores or updates its data from an API. So in the same way that CSS helps us clearly separate the styling of a document from the HTML content, views help us separate DOM creation, updates, and events from the model layer in our app.
+
+</p>
+<p>Another <em>huge</em> benefit of views is that they let us keep all event handlers (click handlers, etc.) cleanly bundled with the relevant portion of the DOM. If you&apos;ve ever tried to build a single page app without views, you&apos;ll know that managing large numbers of event handlers tends to be a big source of bugs, memory leaks, and messy code.
+
+</p>
+<p>There are many tools, frameworks, and approaches to handling this layer – all with varying degrees of magic. 
+
+</p>
+<p>So, continuing our theme of striving for readability and separation of concerns, we want something simple, explicit, and declarative. 
+
+</p>
+<p>Backbone views provide some really great basic patterns for building the view layer:
+
+</p>
+<ol>
+<li>One root element that the view controls, available as <code>this.el</code> within the view.</li>
+<li>One primary model and/or collection, available as <code>this.model</code> and <code>this.collection</code> respectively.</li>
+<li>A <code>render()</code> method responsible for populating and maintaining that base element with the proper contents.</li>
+<li>An optional <code>initialize()</code> method for any necessary setup.</li>
+<li>Shorthand way to register DOM event handlers (the <code>this.events</code> hash).</li>
+<li>A way of disposing of the view and any listeners that it registered.</li>
+</ol>
+<p>But, they&apos;re <em>quite</em> basic so in addition, we&apos;ll extend Backbone views to enable:
+
+</p>
+<ol>
+<li>Simple templating using our precompiled template functions described in Chapter 8.</li>
+<li>A simple way to declare model/template bindings.</li>
+</ol>
+<h2>Introducing HumanView</h2>
+<p>As I mentioned Backbone views are very limited in scope – quite intentionally so. The following explanation is pulled straight from the <a href="http://backbonejs.org/#View">Backbone docs</a>:
+
+</p>
+<blockquote>
+<p>Backbone views are almost more convention than they are code — they don&apos;t determine anything about your HTML or CSS for you, and can be used with any JavaScript templating library. The general idea is to organize your interface into logical views, backed by models, each of which can be updated independently when the model changes, without having to redraw the page.
+
+</p>
+</blockquote>
+<p>Backbone&apos;s general approach is to provide some simple components and patterns, and it&apos;s up to you to apply them as you wish. This non-prescriptive flexibility is a big reason why Backbone has become as popular as it has.
+
+</p>
+<p>However, as you start to build more and more apps you find yourself solving similar problems over and over. In pure Backbone projects we found ourselves always creating a <code>BaseView</code> that contained a lot of the common helpers and patterns we wanted in all our views, and we used that to build all our views in the app. One day I found myself copying and pasting one of the <code>BaseView</code>s from one project to another, and just decided to put in on npm instead.
+
+</p>
+<p>That&apos;s how HumanView was born. It&apos;s just a Backbone view that gives us a few additional goodies.
+
+</p>
+<p>Specifically, it gives us the following:
+
+</p>
+<ol>
+<li>Declarative data bindings.</li>
+<li>A <code>.renderAndBind()</code> method that does several things we want to do on every render.</li>
+<li>A <code>.listenToAndRun()</code> convenience method for binding view methods to model events, while maintaining the view as the context and triggering them right away.</li>
+<li>A <code>.renderCollection()</code> method for rendering a view for each item in a collection within a given container element in the view.</li>
+</ol>
+<p>We&apos;ll take a look at each of those shortly. But first, let&apos;s figure out how we&apos;re going to structure our views within the app.
+
+
+</p>
+<h2>A Hierarchy of Views</h2>
+<p>As you start to build an application with views, you&apos;ll find it makes sense to segment things into subviews. Which raises the question, how do you determine what portions of the app layout to split into subviews?
+
+</p>
+<p>I generally start with a single main view, that I put in <code>views/main.js</code>. The main view has the <code>&lt;body&gt;</code> as its root element. It&apos;s only rendered once and creates the main layout of the app, often rendering several subviews. It also becomes the logical place to register &quot;global&quot; event handlers for things like keyboard shortcuts or app-wide click handlers.
+
+</p>
+<p>The layout will vary from one app to the next, but there are typically some ever-present elements that are part of the layout (navigation, etc.) and often I will have some type of main content container that swaps out based on the URL. I typically give that an <code>id</code> of <code>pages</code> and then render a <code>PageView</code> into that container based on the URL.
+
+</p>
+<p>Here&apos;s an example of how a main view might look if we&apos;re using HumanView:
+
+</p>
+<pre><code class="javascript">var HumanView = require(&apos;human-view&apos;);
+var templates = require(&apos;templates&apos;);
+var NavigationView = require(&apos;./navigation&apos;);
+
+
+module.exports = HumanView.extend({
+  // Our template function that returns an HTML string 
+  // this can also just be a string. Template language
+  // is irrelevant. It just needs to be a function that
+  // takes an argument and returns a string.
+  template: templates.main,
+
+  render: function () {
+    this.renderAndBind(); // Inherited from HumanView
+
+    // Init and &quot;render()&quot; a subview for a hypothetical
+    // navigation view
+    this.navView = new NavigationView({
+      el: this.$(&apos;#mainNav&apos;)[0],
+      model: this.model
+    }).render();
+
+    // It&apos;s common practice to return &quot;this&quot;
+    // when rendering Backbone views in order 
+    // to make it possible to assign the result
+    return this;
+  }
+});</code></pre>
+<p>You will have to make a judgement call on the best way to segment things into manageable, logical containers for your application. Generally, a good rule of thumb is try to encapsulate views by the models you&apos;ll use to control them.
+
+</p>
+<p>For example, let&apos;s assume you&apos;ve got a certain URL that represents a page that should show a list of items. In this case you have a page view that is rendered inside the main views&apos; page container. That PageView would render any headers for that page, as well as a basic list container (a <code>&lt;ul&gt;</code> perhaps) for your list of items. 
+
+</p>
+<p>That page would take the collection you plan to render into that container as its <code>collection</code> property, then we could use the <code>renderCollection</code> method to manage adding/removing individual views (one for each model).
+
+</p>
+<p>If there isn&apos;t a lot of behavior associated with each line item, you may choose to handle the rendering of individual items in the view containing the collection. You&apos;ll simply have to make a determination based on how much behavior is associated with each item in the list. If it&apos;s fairly behavior-less or log-like (say a chat room, for example) you might want to render them into the container and be done. If it&apos;s more interactive, like an tour scheduling app where you&apos;re dragging items around, editing them, and there&apos;s lots of associated data with each one, then you&apos;ll probably want a view to contain the behavior of each item.
+
+</p>
+<p>Take a look at the associated demo app to see examples of each approach to handling collections.
+
+</p>
+<p>You can find the app on my <a href="https://github.com/HenrikJoreteg/humanjs-sample-app">GitHub account</a>
+
+
+</p>
+<h3>Caveat: understanding <code>this.$</code></h3>
+<p>Inside the example above, in the <code>render</code> method, you&apos;ll notice that we pass: <code>this.$(&apos;#mainNav&apos;)[0]</code> as the <code>el</code> argument for the subview. You may wonder, why not just pass <code>$(&apos;#mainNav&apos;)[0]</code> or even just <code>document.getElementById(&apos;mainNav&apos;)</code>?
+
+</p>
+<p>Well, you can&apos;t assume that the view is attached to the main DOM tree when this method is called. If you haven&apos;t yet attached it, the other selector queries wouldn&apos;t be able to find the right elements because they&apos;re not in the main document tree yet. In fact, often a parent view will call <code>render()</code> on a subview as part of its own render method, and then attach the result to the DOM. This is entirely intentional because it&apos;s much faster for the browser to create the DOM elements outside of the main DOM tree, only attaching and painting them once.
+
+</p>
+<p>So, to deal with this problem, Backbone Views create a method named <code>$</code> for each view. This method is functionally equivalent to a normal jQuery selector such as <code>$(&apos;.item&apos;)</code>. <em>But</em>, it only looks for matches within the view&apos;s element. Not only is it faster (because there&apos;s less DOM to traverse) but more importantly, it finds the elements that match your selector within the view&apos;s element <em>even if it&apos;s not yet been attached to the DOM</em>.
+
+</p>
+<p>If that was all a bit too complex, just know that you should generally use <code>this.$(&apos;.yourSelector&apos;)</code> instead of <code>$(&apos;.yourSelector&apos;)</code> when trying to grab elements within a view.
+
+
+</p>
+<h3>Registering DOM event handlers</h3>
+<p>In wiring up a view to the DOM, you&apos;ll often want to respond to interactions from the user. 
+
+</p>
+<p>Because registering a handler to a particular method in your view and binding it to execute in the context of the view is such a common pattern, Backbone gives us a declarative short way to register all the handlers we&apos;ll need for a given view. 
+
+</p>
+<p>This is done through the <code>events</code> hash. 
+
+</p>
+<p>It works like this:
+
+</p>
+<pre><code class="javascript">var HumanView = require(&apos;human-view&apos;);
+var templates = require(&apos;templates&apos;);
+
+
+module.exports = HumanView.extend({
+  template: templates.widget,
+  events: {
+    // The event + element: the name of the handler
+    &apos;click .delete&apos;: &apos;handleDeleteClick&apos;,
+    &apos;keyup input.search&apos;: &apos;handleSearchKeyUp&apos;
+  },
+  render: function () {
+    // This we inherit from human-view
+    this.renderAndBind();
+  },
+  handleDeleteClick: function () {
+    this.model.delete();
+  },
+  handleSearchKeyUp: function () {
+    var inputVal = this.$(&apos;.search&apos;).val();
+    this.collection.each(function (model) {
+      model.matchesSearch = this.name.indexOf(inputVal) !== -1;
+    });
+  }
+});</code></pre>
+<p>That events hash is equivalent to doing the following inside the render method. 
+
+</p>
+<pre><code class="javascript">  render: function () {
+    // This we inherit from human-view
+    this.renderAndBind();
+    this.$el.delegate(&apos;.delete&apos;, &apos;click&apos;, _.bind(this.handleDeleteClick, this));
+    this.$el.delegate(&apos;input.search&apos;, &apos;keyup&apos;, _.bind(this.handleSearchKeyUp, this));
+  },</code></pre>
+<p>But the events hash is less verbose and arguably more readable.
+
+
+</p>
+<h3>Binding model values to templates</h3>
+<p>In order to keep our separation of concerns, very rarely do I set style attributes directly from JavaScript. I believe that is a job for CSS. So much of what I do is flip classes based on property values on the underlying model.
+
+</p>
+<p>Backbone kind of loosely encourages you to just re-render views entirely when something changes. In a lot of cases that&apos;s totally fine, but I like only changing the specific thing that needs updating when the underlying model changes. Obviously, this can be a bit more tedious because you have to bind each thing explicitly somehow. 
+
+</p>
+<p>This is where HumanView comes in handy. Much in the same way that we declare event handlers in the <code>events</code> hash as described above, we can also declare data bindings of various types in our views as follows:
+
+
+</p>
+<pre><code class="javascript">var HumanView = require(&apos;human-view&apos;);
+var templates = require(&apos;templates&apos;);
+
+
+module.exports = HumanView.extend({
+  template: templates.widget,
+  events: {
+    &apos;click .delete&apos;: &apos;handleDeleteClick&apos;,
+    &apos;keyup input.search&apos;: &apos;handleSearchKeyUp&apos;
+  },
+  // Content bindings mean
+  // put the name attribute of the
+  // model in this view into the
+  // element that matches the
+  // &apos;.profileName&apos; selector as text.
+  contentBindings: {
+    &apos;name&apos;: &apos;.profileName&apos;
+  },
+  // Class bindings work a tad differently.
+  // If they&apos;re boolean attributes
+  // it will add or remove a class
+  // of the same name as the property.
+  // If the property value is a string
+  // it will maintain a class of whatever
+  // that string value is on the element.
+  classBindings: {
+    &apos;selected&apos;: &apos;&apos;,
+    &apos;active&apos;: &apos;.container&apos;
+  },
+  render: function () {
+    this.renderAndBind(); // This is what does all the bindings.
+  },
+  handleDeleteClick: function () {
+    this.model.delete();
+  },
+  handleSearchKeyUp: function () {
+    var inputVal = this.$(&apos;.search&apos;).val();
+    this.collection.each(function (model) {
+      model.matchesSearch = this.name.indexOf(inputVal) !== -1;
+    });
+  }
+});</code></pre>
+<p>In this way, you follow a similar style and pattern to Backbone to also specify what properties (or computed properties) you want bound to what DOM.
+
+</p>
+<p>As an additional bonus, all handlers are registered using Backbone&apos;s <code>listenTo()</code> which handles unbinding those handlers when the view is destroyed.
+
+
+</p>
+<h3>HumanView&apos;s convenience methods</h3>
+<h4>.renderAndBind();</h4>
+<p>The general pattern, encouraged in the Backbone documentation is to use templates to populate the contents of a view&apos;s main element. That way, you never have to re-register any DOM event handlers because they&apos;re attached to the view&apos;s root element. With that approach (which is perfect for some uses) you can just call <code>.render()</code> any time anything changes in the model. 
+
+</p>
+<p>If you have a simple view that renders a single model, binding views becomes <em>very</em> easy at that point. You simply do something like this:
+
+
+</p>
+<pre><code class="javascript">var Backbone = require(&apos;backbone&apos;);
+var _ = require(&apos;underscore&apos;);
+var templates = require(&apos;templates&apos;);
+
+
+module.exports = Backbone.View.extend({
+  template: templates.user,
+  events: {
+    &apos;click .myClass&apos;: &apos;myHandler&apos;
+  },
+  initialize: function () {
+    // Register a single change handler for the model
+    this.listenTo(this.model, &apos;change&apos;, _.bind(this.render, this));
+  },
+  render: function () {
+    // We simply fill the contents of the current element with
+    // the rendered HTML using the model&apos;s current attributes each time.
+    this.$el.html(this.template(this.model.toJSON()));
+  },
+  myHandler: function () {
+    // Do something
+  }
+});</code></pre>
+<p>At this point, any change we make to that model will simply re-render the HTML for the whole thing. Slick, simple, and easy.
+
+</p>
+<p>However, that&apos;s not always what you want, especially in realtime apps where an incoming event could come in and change a model when you&apos;re not ready for it. But perhaps a more compelling argument is where you want to use CSS3 transitions and animations. If we want to add a class that triggers a transition, simply re-drawing the whole container won&apos;t actually trigger it. 
+
+</p>
+<p>Also, it doesn&apos;t quite feel right to me to write templates that only contain the contents of the view element:
+
+</p>
+<pre><code class="html">&lt;h1&gt;My page&lt;/h1&gt;
+&lt;p&gt;My content&lt;/p&gt;</code></pre>
+<p>It seems more logical to write <em>the entire</em> template for that view which also includes the root element itself:
+
+</p>
+<pre><code class="html">&lt;section class=&quot;page&quot;&gt;
+   &lt;h1&gt;My page&lt;/h1&gt;
+   &lt;p&gt;My content&lt;/p&gt;
+&lt;/section&gt;</code></pre>
+<p>Because now, just by looking at that template, I can look at it and know what it is without having to know which view is going to use it.
+
+</p>
+<p>In addition, if I want to include some conditional class or some other property on the root element I can do so declaratively, right in the template along with everything else, instead of having to do it in the render method of the view.
+
+</p>
+<p>Now, enter <code>renderAndBind(opts)</code>. Basic render encapsulates everything you need to do to render the view, while also replacing the entire existing root element and making sure all the event handlers in your event hash are registered.
+
+</p>
+<p>It looks for a <code>template</code> property of the view, and calls it with the context you hand it.
+
+</p>
+<h4>.listenToAndRun();</h4>
+<p>Very commonly, when you want to listen to some change on a model, you&apos;re often wanting to:
+
+</p>
+<ol>
+<li>Bind the handler so that when it&apos;s called, <code>this</code> is the view. </li>
+<li>Run the bound handler once so its effect is applied to the DOM. (This avoids having to duplicate logic in the template that&apos;s already in your handler).</li>
+</ol>
+<p><code>.listenToAndRun()</code> does both of these for you. 
+
+</p>
+<p>So instead of:
+
+</p>
+<pre><code class="javascript">...
+initialize: function () {
+  this.listenTo(this.model, &apos;change&apos;, _.bind(this.doSomething, this));
+  this.doSomething();
+}
+...</code></pre>
+<p>You can just do:
+
+</p>
+<pre><code class="javascript">...
+initialize: function () {
+  this.listenToAndRun(this.model, &apos;change&apos;, this.doSomething);
+}
+...</code></pre>
+<h4>.renderCollection();</h4>
+<p><code>.renderCollection()</code> is a lightweight way to render and maintain a collection of models within a container. 
+
+</p>
+<p>It will listen for <code>add</code>, <code>remove</code>, <code>sort</code> events on the collection and shuffle and re-draw views for each model as necessary.
+
+</p>
+<p>You simply pass it the collection, the subview you want to render each model with, and the set of options you want to pass to the subview, and it handles the rest.
+
+</p>
+<p>Example:
+
+</p>
+<pre><code class="javascript">var HumanView = require(&apos;human-view&apos;);
+var templates = require(&apos;templates&apos;);
+var ItemView = require(&apos;./item&apos;);
+
+
+module.exports = HumanView.extend({
+  template: templates.myPage,
+  render: function () {
+    this.renderAndBind();
+    this.$container = this.$(&apos;.myItemList&apos;)[0];
+    this.renderCollection(this.collection, ItemView, this.$container[0]);
+  }
+});</code></pre>
+<p>For more on HumanView, or to contribute and make it better, see the documentation and source on <a href="https://github.com/henrikjoreteg/human-view">GitHub</a>.
+
+
+</p>
+<h2>A bit about defining bindings in templates (à la AngularJS, Ractive)</h2>
+<p>There are tools out there that let you specify in your templates which pieces of information go where in your DOM and then they magically handle the event bindings for you. 
+
+</p>
+<p>When I first started working with Backbone when it was v0.3 I thought I wanted this. Basically, assume you have a template like this:
+
+</p>
+<pre><code class="html">&lt;div&gt;
+  &lt;p&gt;Hello {{ name }}&lt;/p&gt;
+&lt;/div&gt;</code></pre>
+<p>Then you mash that together with your model and then they&apos;re magically bound. As a paraphrased pseudo-code-y example:
+
+</p>
+<pre><code class="javascript">var template = require(&apos;compiledTemplateFromSomewhere&apos;);
+var model = require(&apos;someModel&apos;);
+
+document.body.appendChild(template(model));
+
+// Then if you changed the model
+model.set(&apos;name&apos;, &apos;Sue&apos;);
+
+// the DOM would be magically updated to be:
+/*
+&lt;div&gt;
+  &lt;p&gt;Hello Sue&lt;/p&gt;
+&lt;/div&gt;
+*/</code></pre>
+<p>This is all fine and good for inserting text into an HTML snippet. But what if what you actually want is a bit of logic, or what you want to bind is another attribute, like a <code>class</code>, <code>src</code>, <code>href</code>? Not a big deal per se, but it starts getting more convoluted and pretty soon you&apos;re writing a lot of logic into your templates. 
+
+</p>
+<p>Why is that bad? It could be argued, but I feel like it&apos;s the wrong place to read logic. I find <code>if</code> statements and functions in JavaScript much easier to follow in JavaScript files with the rest of the logic, than when it&apos;s sprinkled into the HTML. That reminds me of old approaches to building dynamic web pages where people would write a DB query at the top of the HTML page within some type of special tag and then loop through the results in the markup below using other special tags. 
+
+</p>
+<p>Mixing of these concerns makes re-factoring and code re-use more difficult because you&apos;ve got bits and pieces of logic spread out in more places.
+
+</p>
+</main>
+    <footer><span class="prev"><a href="/book/ch06-models.html">ch06 - models</a></span><span class="next"><a href="/book/ch08-templating.html">ch08 - templating</a></span>
+    </footer>
+  </body>
+  <script src="/static/js/highlight.pack.js"></script>
+  <script src="/static/js/slugger.js"></script>
+  <script src="/static/js/setup.js"></script>
+  <script src="http://static.andyet.com/tag.js"></script>
+</html>

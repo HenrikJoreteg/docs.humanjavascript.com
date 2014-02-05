@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link type="text/css" rel="stylesheet" href="/static/css/main.css">
+    <link type="text/css" rel="stylesheet" href="/static/css/&amp;yet-highlight.css">
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+      ga('create', 'UA-44685415-1', 'humanjavascript.com');
+      ga('send', 'pageview');
+    </script>
+    <title>Human JavaScript: ch12 - settings and configs</title>
+  </head>
+  <body>
+    <nav>
+      <div id="slider"></div>
+    </nav>
+    <main><h1>App settings and configuration</h1>
+<h2>The problem</h2>
+<p>App configuration and environment settings are always a PITA, right? Especially when you&apos;ve got configuration settings you want to pass to your single page app. If we&apos;ve structured everything as building a &quot;static&quot; js file that gets sent, then how do we pass dynamic values into it for things like configuration?
+
+</p>
+<p>We solve this problem with a simple approach and two specific tools:
+
+</p>
+<ul>
+<li><a href="https://github.com/henrikjoreteg/getconfig">getconfig</a></li>
+<li><a href="https://github.com/henrikjoreteg/clientconfig">clientconfig</a></li>
+</ul>
+<p>They&apos;re in no way dependent on each other but they do play nicely together.  (Both are on npm, by the way).
+
+</p>
+<h2>getconfig</h2>
+<p>First, getconfig. This is a tool for configuring Node web apps. It follows the same assumptions as <a href="http://expressjs.com/">Express</a> does, in that it looks to an environment variable (NODE_ENV, <a href="http://expressjs.com/api.html#app-settings">reference</a>) to determine the mode in which it should run.
+
+</p>
+<p>It simply uses that to look for a JSON config file that matches the name of the environment. For example: dev_config.json or production_config.json. It defaults to dev if it doesn&apos;t find one.
+
+</p>
+<p>Then, from your Node app you just require &quot;getconfig&quot; and access settings directly on the resulting object, which will have pulled it from the correct config file. Super clean/simple:
+
+
+</p>
+<pre><code class="javascript">// We just require the module
+var config = require(&apos;getconfig&apos;);
+
+// Which actually returns our environment-aware config
+// from the corresponding config file. 
+config.mySetting;</code></pre>
+<p>It just pulls the right config from the right file, no &quot;if&quot; statements, no mess.
+
+
+</p>
+<h2>clientconfig</h2>
+<p>On the clientside we do something very similar.
+
+</p>
+<pre><code class="javascript">var config = require(&apos;clientconfig&apos;);
+
+config.mySetting;</code></pre>
+<p>This time, instead of looking for an environment variable, the module looks for a cookie called &quot;config&quot; that contains a JSON encoded config object. It immediately reads, then destroys that cookie (to avoid the overhead of sending it around on any subsequent requests).
+
+</p>
+<p>Clientconfig reads and returns a &quot;frozen&quot; config object (using ES5 Object.freeze, if available) with our settings. So, it&apos;s basically the equivalent developer experience as getconfig, but for the client.
+
+
+</p>
+<h2>Using them together</h2>
+<p>In combination, it gets pretty slick:
+
+</p>
+<p>Say we have a dev_config.json that looks like this, on our server.
+
+</p>
+<pre><code class="json">{
+  &quot;myProjectSetting&quot;: &quot;someSetting&quot;,
+  &quot;clientAppSettings&quot;: {
+    &quot;apiUrl&quot;: &quot;https://api.andbang.com&quot;,
+    &quot;trackMetrics&quot;: false
+  }
+}</code></pre>
+<p>*note the &quot;clientAppSettings&quot; section.
+
+</p>
+<p>Now, in our main server file where we handle the requests for single page apps, we then add on our config cookie with the data from getconfig using a very simple piece of middleware.
+
+
+</p>
+<pre><code class="javascript">// Set up our app and require getconfig
+var app = require(&apos;express&apos;)(),
+    config = require(&apos;getconfig&apos;); 
+
+// Build a tiny middleware function that sets the cookie
+var configMiddleware = function (req, res, next) {
+  res.setCookie(&apos;config&apos;, JSON.stringify(config.clientAppSettings);
+  next();
+};
+
+// In the code that serves our singlepage app, use the middleware
+app.get(&apos;/app&apos;, configMiddleware, function (req, res) {
+  res.send(clientApp.html());
+});</code></pre>
+<p>Just like that, we&apos;ve got a simple unified config file on our server where we can store all environment specific settings for the whole app. It becomes very painless to pass settings to our clientapp based on our environment without having to think about it. 
+
+</p>
+<p>The other benefit of this approach is that it lets us keep our clientside JS app as a completely static file. We don&apos;t have to do custom builds that write in settings or anything while still avoiding additional HTTP requests to fetch settings.
+
+
+</p>
+<h2>Security caveats</h2>
+<p>Please avoid if sending any valuable settings across the wire this way, especially if you&apos;re not using https. Cookies are just http headers, so it&apos;s best to assume that this is not secure information and thus, should only be used for non-sensitive data.
+</p>
+</main>
+    <footer><span class="prev"><a href="/book/ch11-testing-and-qa-that-doesnt-suck.html">ch11 - testing and QA that doesnt suck</a></span><span class="next"><a href="/book/ch13-caveats.html">ch13 - caveats</a></span>
+    </footer>
+  </body>
+  <script src="/static/js/highlight.pack.js"></script>
+  <script src="/static/js/slugger.js"></script>
+  <script src="/static/js/setup.js"></script>
+  <script src="http://static.andyet.com/tag.js"></script>
+</html>

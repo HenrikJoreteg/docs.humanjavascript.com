@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link type="text/css" rel="stylesheet" href="/static/css/main.css">
+    <link type="text/css" rel="stylesheet" href="/static/css/&amp;yet-highlight.css">
+    <script>
+      (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+      (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+      m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+      })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+      ga('create', 'UA-44685415-1', 'humanjavascript.com');
+      ga('send', 'pageview');
+    </script>
+    <title>Human JavaScript: ch06 - models</title>
+  </head>
+  <body>
+    <nav>
+      <div id="slider"></div>
+    </nav>
+    <main><h1>Models</h1>
+<h2>A simple example</h2>
+<p>Let&apos;s say you have a list of items. When a user clicks on an item, you want to visually mark it as selected. Someone used to building simple apps would probably do something like this:
+
+</p>
+<pre><code class="javascript">// Register a click handler on the parent list
+$(&apos;ul.theList&apos;).delegate(&apos;click&apos;, &apos;li&apos;, function () {
+  // Toggle a class on the clicked item
+  $(this).toggleClass(&apos;selected&apos;);
+})</code></pre>
+<p>So now, clicking on an item will toggle a class. jQuery&apos;s <code>toggleClass()</code> method will check whether it&apos;s already got the class, and add or remove it as necessary. Great! We&apos;re done!
+
+</p>
+<p>Err... well typically if you&apos;re going to select something it&apos;s for a reason, right? So our app is going to want to <em>do</em> something with the selected item or items. 
+
+</p>
+<p>Let&apos;s say the user has selected several things and now wants to delete them by clicking a delete button. No problem, you say, we just add a button handler that find the ones with the selected class and deletes them.
+
+</p>
+<pre><code class="javascript">$(&apos;button.delete&apos;).click(function () {
+  // Get our seletedDOM items, loop through them
+  $(&apos;ul.theList li.selected&apos;).each(function () {
+    // But we also have to have a way to figure out what
+    // ID each one of these things represent so we can pass
+    // the correct info to the server. So, let&apos;s assume we use
+    // HTML5 data attributes. Luckily jQuery&apos;s data() method
+    // reads all those and returns them as an object.
+    var id = $(this).data(&apos;serverId&apos;);
+    var listId = $(this).data(&apos;listId&apos;);
+    $.ajax({
+      type: &apos;delete&apos;,
+      url: &apos;/lists/&apos; + listId + &apos;/widgets/&apos; + id,
+      success: function () {
+        // Do something
+      },
+      error: function () {
+        // Let the user know, somehow
+      }
+    })
+  }); 
+});</code></pre>
+<p>Ok, not too terrible, you say? 
+
+</p>
+<p>Well now what if we&apos;ve got these additional requirements?
+
+</p>
+<ol>
+<li>There isn&apos;t just one list, there are several on the page at once. There are some actions that can be performed in bulk, but only for some of the items in some of the lists.</li>
+<li>There are some items you can&apos;t delete, because you don&apos;t have permission to, but you can still select them and annotate them.</li>
+<li>Deleting the item is only one of six different possible actions you can take with each item.</li>
+<li>You have to support full keyboard control, as well as handling mouse clicks. </li>
+<li>You now want to support selecting the top item, holding shift and clicking the bottom one to select a range.</li>
+</ol>
+<h3>If you continue this same approach, you&apos;re in deep doo doo</h3>
+<p>You can handle adding features to a point. But you will reach a point where you start arguing against adding features, not because you don&apos;t think they&apos;re good ideas, but because you&apos;re scared to implement them because of the headaches and bugs it will inevitably cause.
+
+</p>
+<p>Welcome to nearly everyone&apos;s first single page app experience.
+
+
+</p>
+<h3>Enter Models</h3>
+<p>If you&apos;ve never used models in clientside code, it&apos;s not as intimidating as it may sound. The idea is simply that we create some data structures in the browser, separate from the DOM, that hold the data that we got from the server as well as any client specific data or state. 
+
+</p>
+<p>The &quot;selected&quot; state as described above is a good example of client-specific state, meaning when we go to update an entry in the API, we&apos;re not going to send <code>{selected: true}</code> as one of its properties. The server doesn&apos;t care about that, it&apos;s just used to track the state of the user interface.
+
+</p>
+<p>So, what is a model anyway? What does it give us?
+
+</p>
+<p>The fundamental thing a model should provide is observability. What do I mean? Well, in the same way you can register an event listener in the browser that responds to a form input value changing:
+
+</p>
+<pre><code class="javascript">document.getElementById(&apos;myInput&apos;).addEventListener(&apos;change&apos;, function () {
+  // Do something with the value
+});</code></pre>
+<p>A model should let us listen for changes to its properties:
+
+</p>
+<pre><code class="javascript">model.on(&apos;change:selected&apos;, function (newValue) {
+  // Do something with the new value
+});</code></pre>
+<p>In addition, models should contain functionality that makes it easy for us to work with that data. That means things like exposing some processed form of the data, should be a method on the model. Let&apos;s say one of the model properties represents a date. We may have a method on the model for getting a nicely formatted date string built from that date object. Arguably this is a presentation issue, but the model ends up being a logical place to expose a string version of the date property for maximum re-use and consistency.
+
+</p>
+<p>In addition, models are a good place for methods that perform actions on the model itself, like updating the server when the model changes.
+
+</p>
+<p>In <a href="https://andbang.com">And Bang</a>, we do a lot with tasks. You can assign them to each other, &quot;ship&quot; them, &quot;later&quot; them, &quot;trash&quot; them, etc.
+
+</p>
+<p>So, each of these actions are represented by a method on the task model that sends the correct data to the server, as well as updating the appropriate properties on the local model. 
+
+</p>
+<p>For example, here&apos;s the <code>trash</code> method of a task in And Bang:
+
+
+</p>
+<pre><code class="javascript">...
+},
+trash: function () {
+  if (this.deleteable) {
+    this.removing = true;
+    this.api(&apos;deleteTask&apos;);
+  }
+  return this.deleteable;
+},
+...</code></pre>
+<p>It includes an upfront check to see whether we even have permission to trash this item. In case you&apos;re wondering this isn&apos;t actually used to enforce this permission, that&apos;s the API&apos;s job. 
+
+</p>
+<p>In fact, that&apos;s worth a little tangent to drive home the purpose of an API. It&apos;s <em>always</em> the API&apos;s job to maintain its own data integrity. You shouldn&apos;t <em>ever</em> be able to do anything in the client code that puts your API data in a weird or broken state. For example, never leave it up to your client code to know that if you delete a list you also have to go delete all the items in the list. That&apos;s the API&apos;s job.
+
+</p>
+<p>Continuing... calling the <code>trash</code> method sets a local state property <code>removing</code> and then calls the API method that sends the command to the server to delete the task (in this case via WebSocket, but the transport is irrelevant).
+
+</p>
+<p>But the cool thing is, that&apos;s <em>it</em>. That&apos;s all we have to do when we want to delete a widget. You simply have to look up that widget&apos;s model and call <code>.trash()</code>. 
+
+</p>
+<p>Nowhere in this code do you see anything about removing the item from DOM.
+
+</p>
+<p>That happens when we get confirmation from the API that the task was removed. It is then removed from the collection, which triggers a <code>remove</code> event on the collection and the view (which represents the DOM, as described in the next chapter) listens for <code>remove</code> events and plucks that list item out of the DOM. It may sound a bit complex, but only in that you have to describe all those relationships. Once you have it&apos;s beautifully simple. 
+
+</p>
+<p>Assuming we&apos;ve got a view that represents that model, the view would have a click handler like this:
+
+</p>
+<pre><code class="javascript">var Backbone = require(&apos;backbone&apos;);
+
+module.exports = Backbone.View.extend({
+  // Our events hash (explained in the next chapter)
+  events: {
+    &apos;click .delete&apos;: &apos;handleDeleteClick&apos;
+  },
+  // Our handler simply calls &quot;trash&quot;, nothing more
+  handleDeleteClick: function () {
+    this.model.trash();
+  },
+  ...
+})</code></pre>
+<p>Alternately, you can simply open the JS console in your browser and type:
+
+</p>
+<pre><code class="javascript">&gt; app.currentTeam.tasks.get(&apos;someId&apos;).trash();</code></pre>
+<p>And you&apos;ll see that everything still happens exactly the same as if you had clicked to delete. The task will be deleted on the server and removed from the DOM.
+
+
+</p>
+<h2>Using models for everything</h2>
+<p>As the app becomes more complex the failure to store all state in one (and only one) place in your app will be the source of the sorts of bugs that drive you to give up development and take up gardening.
+
+</p>
+<p>So, what do I mean by storing <em>all</em> the state in your app? It&apos;s quite easy. If you find yourself checking whether something has a class or not, and using that to determine a course of action, you&apos;re doing it wrong. 
+
+</p>
+<p>There are two simple rules:
+
+</p>
+<ol>
+<li><p>All input, whether from the user or from an API, <em>never</em> does anything other than call a method or update a property of your models.</p>
+</li>
+<li><p>Always use your models as the &quot;source of truth&quot; in your app. Never &quot;look up&quot; state information anywhere other than your models.</p>
+</li>
+</ol>
+<h3>Applying this approach to our widget example</h3>
+<p>Let&apos;s think about the data first, before we think about the behavior. These items in the list represent something. Let&apos;s model <em>that</em> before we think about how they&apos;ll be presented. Let&apos;s just make a collection of models representing the items in the list. 
+
+</p>
+<p><code>models/widgetCollection.js</code>
+
+</p>
+<pre><code class="javascript">var Backbone = require(&apos;backbone&apos;);
+var WidgetModel = require(&apos;./models/widget&apos;)
+
+// Our main export from this module (just the collection)
+module.exports = Backbone.Collection.extend({
+  // Specify the model type for this collection
+  model: WidgetModel,
+  // The RESTful API URL representing this resource
+  url: &apos;/widgets&apos;
+});</code></pre>
+<p><code>models/widget.js</code>
+
+</p>
+<pre><code class="javascript">var HumanModel = require(&apos;human-model&apos;);
+
+module.exports = HumanModel.define({
+  // We give our model a type
+  type: &apos;widget&apos;,
+  // Define properties, these are the ones
+  // that live on the server-side
+  props: {
+    id: [&apos;string&apos;, true],
+    widgetType: [&apos;string&apos;, true, &apos;dooDad&apos;]
+  },
+  // Session properties are just like props but
+  // exist for the purpose of storing client-side
+  // state.
+  session: {
+    selected: [&apos;boolean&apos;, true, false]
+  }
+});</code></pre>
+<p>At this point we can do something like this in our application launch code:
+
+
+</p>
+<pre><code class="javascript">var WidgetCollection = require(&apos;models/widgets&apos;);
+
+// Assume this is the app&apos;s entry point
+module.exports = {
+  blastoff: function () {
+    // Create our one global that holds the app
+    window.app = this;
+
+    // Attach our widget collection here
+    this.widgets = new WidgetCollection();
+    // Assumes you&apos;ve got things set up so 
+    // this will do an AJAX (or some other type) call
+    // and populate the collection.
+    this.widgets.fetch();
+  }
+};</code></pre>
+<p>So now we&apos;ve got a representation of that list of widgets that assumes nothing about how it&apos;s going to be used.
+
+</p>
+<p>Stop for a second and think about what that does for us when requirements change or even when we go build a second application on the same API. Nearly <em>all</em> the model code will be re-usable with zero changes. It simply represents the state that is available in the API, which is the same no matter what the interface looks like. 
+
+</p>
+<p>Also, think about this in a team environment. Someone can be working on writing models and making sure they get the proper data populated from the API while someone is building the clientside router and page views that include and design &quot;static&quot; versions of page elements that will be rendered by models once the API is hooked up. Because they&apos;re all in separate files you won&apos;t step on each other&apos;s toes and merging the combined code in git won&apos;t result in any major merge conflicts. 
+
+</p>
+<p>Just imagine the sort of impact this has for a team to be able to work in parallel and to write code that doesn&apos;t need to be thrown away the minute someone wants to change the layout of the app.
+
+</p>
+<p>In fact, that basic model layer and API synchronization can be created before we even have a final app design.
+
+
+</p>
+<h3>Model alternatives</h3>
+<p>In order to provide observability, models generally provide some sort of event registration system and a way to set and get some &quot;protected&quot; attributes.
+
+</p>
+<p>For a long time, I used Backbone models for everything. The code for them is quite simple and readable (YES!); they&apos;re also flexible and easy to use. Also, I&apos;m generally a big fan of Backbone&apos;s principles and structure.
+
+</p>
+<p>Yet, you&apos;ll notice the examples all use <code>HumanModel</code> instead of <code>Backbone.Model</code>.
+
+</p>
+<p>Despite my love for Backbone, a few things finally drove me to creating HumanModel:
+
+
+</p>
+<h4>1. Readability</h4>
+<p>If the models are the core of our application (as they should be), someone should be able to open the code for the model and <em>read</em> what properties it stores and what types those properties have. This is <em>huge</em> for enabling people to jump in and contribute to a project.
+
+
+</p>
+<h4>2. Derived properties</h4>
+<p>So often, the data you get from the server is not in the format you&apos;ll want to present it. The classic example is first and last name. Most likely they come as separate fields from the API, but in reality, most places you&apos;re going to present a user&apos;s name in the app will be in the format: <code>firstName + &apos; &apos; + lastName</code>. In Backbone you&apos;d perhaps create a method called <code>fullName()</code> that when called, returned that value to you. The annoying thing comes when you want to bind that value to some location in the DOM. You have to listen for changes to either <code>firstName</code> or <code>lastName</code> and then call the method again and put the result into the DOM. There are two things I don&apos;t like about this: 
+
+</p>
+<ol>
+<li><p>It <em>feels</em> like <code>fullName</code> or even just <code>name</code> should just be accessible in the same way as first or last name. Why can&apos;t I just go <code>user.name</code>?</p>
+</li>
+<li><p>I want to be able to listen for changes in one place. So, instead of <code>model.on(&apos;change:firstName change:lastName&apos;, doSomething)</code> it seems like I should be able to just listen for changes to <code>change:name</code> and have the model be smart enough to know that if either first or last name changes, call that handler too. </p>
+</li>
+</ol>
+<h4>3. Direct access to properties</h4>
+<p>In a large app, you work with models <strong>a lot</strong>. Having to call <code>get</code> and <code>set</code> everywhere is a bit less than ideal, IMO. ECMAScript 5 (a.k.a. the version of the JS spec available in modern browsers) allows for <code>getters</code> and <code>setters</code> which means you can actually process simple assignments. This is better illustrated with an example:
+
+</p>
+<pre><code class="javascript">// Without getters/setters (Backbone Model)
+model.set(&apos;firstName&apos;, &apos;Henrik&apos;);
+
+// With getters/setters (HumanModel)
+model.firstName = &apos;Henrik&apos;;</code></pre>
+<p>What do I mean? You can already set whatever properties you want directly on an object even without getter/setters, right?!
+
+</p>
+<p>YES! But not in a way that can be observed.
+
+</p>
+<p>Getters and setters allow us to trigger those <code>change</code> events even when properties are set directly:
+
+</p>
+<pre><code class="javascript">model.on(&apos;change:firstName&apos;, function () {
+  console.log(&apos;firstName changed!&apos;); 
+});
+
+// Even when setting the attribute directly the callback 
+// registered above would still be called.
+model.firstName = &apos;Henrik&apos;;</code></pre>
+<p>Getters and setters give us enormous flexibility, which can be bad. For example, we can make a getter run whatever code we want and return anything whenever we access a property.
+
+</p>
+<pre><code class="javascript">trickyModel.firstName = &apos;Henrik&apos;;
+
+console.log(trickyModel.firstName); 
+// We can make this log out *whatever* the heck we want
+// despite it appearing to just have been assigned above.</code></pre>
+<h5>Quick note on how to use getters/setters</h5>
+<p>Be sure to read the warning below, but for those not familiar, it may be useful to have a bit of an explanation of how getters and setters are written. There are two syntax options.
+
+</p>
+<p>The first is using the <code>get</code> and <code>set</code> operators directly to define those methods:
+
+</p>
+<pre><code class="javascript">var myObject: {
+  _properties: {},
+  get name () {
+    return this._properties.name;
+  },
+  set name (value) {
+    this._properties.name = value;
+  }
+}</code></pre>
+<p>The second is using <code>Object.defineProperty()</code>:
+
+</p>
+<pre><code class="javascript">var myObject = {
+  _properties: {}
+};
+
+Object.defineProperty(myObject, &quot;name&quot;, {
+  get: function () {
+    return this._properties.name;
+  },
+  set: function (value) {
+    this._properties.name = value;
+  }
+});
+
+// There&apos;s also a defineProperties (plural)
+Object.defineProperties(myObject, {
+  lastName: {
+    get: function () { ... },
+    set: function () { ... }
+  },
+  fullName: {
+    get: function () { ... },
+    set: function () { ... }
+  }
+})</code></pre>
+<h5>Warning!</h5>
+<p>As you can imagine this power gives you a <em>lot</em> of rope to hang yourself with and thus, this capability should be used <em>very</em> cautiously.
+
+</p>
+<p>Some argue, and I can see their point, that using this is too much magic. If that&apos;s how you feel. Luckily, in our happy modular world, you can just use plain Backbone models and for many simpler apps, I still do.
+
+</p>
+<p>However, I happen to think that in the case of models getters/settings can actually make our code more fault tolerant and more readable. But, I <em>only</em> use them for model properties and only in predictable ways.
+
+
+</p>
+<h4>4. Type enforcement</h4>
+<p>JavaScript, the language is dynamically typed, which is awesome. But we&apos;ve said we&apos;re making our models the <em>core</em> of the app. Knowing that a given property is a given type is quite useful for eliminating silly bugs and protecting ourselves. 
+
+</p>
+<p>Let&apos;s compare the two with a simple user model. In Backbone there is no standard way to define a property. Instead, you simply set a value as if it exists and now it does. 
+
+</p>
+<pre><code class="javascript">// Backbone model, no definition needed.
+// There *is* no standard way to even
+// define the properties it should store.
+var model = new Backbone.Model();
+
+model.set({
+  firstName: &apos;Henrik&apos;,
+  lastName: &apos;Joreteg&apos;
+});
+
+// Now I can get those
+model.get(&apos;firstName&apos;); // logs out &apos;Henrik&apos;</code></pre>
+<p>Simple, elegant, flexible. But, assuming I set these values in some view code somewhere in another part of a large app, how do I know what attributes I have available to me or what they&apos;re called?
+
+</p>
+<p>If I&apos;m hitting an API to get my data and using the resulting data to set attributes on models, I have two options for figuring out what data I&apos;m storing and what data I have available to my views. I either inspect the request to know what properties I&apos;m supposed to have or inspect it in the console at runtime to see what properties my model contains and what their names are. 
+
+</p>
+<p>That doesn&apos;t seem very developer friendly. 
+
+</p>
+<p>Just think how much information I&apos;m missing:
+
+</p>
+<ol>
+<li>What properties do I have?</li>
+<li>What type of values do those properties contain?</li>
+<li>Can I trust that this property will always contain a value?</li>
+<li>Is this a property client state or data we got from the server?</li>
+<li>When I go to update the model on the server, which properties should be sent? </li>
+<li>Is a property computed from other properties, if so, how do I keep it up to date?</li>
+<li>Perhaps most importantly, where do I go to find the answers to the questions above?</li>
+</ol>
+<p>Sure the following example is silly, but what if I write some stupid code (as we do sometimes, amirite humans?!).
+
+</p>
+<pre><code class="javascript">// There&apos;s nothing stopping you from setting 
+// the firstName property to be a date object.
+model.set(&apos;firstName&apos;, new Date());</code></pre>
+<p>Sure, you may be able to keep it all in your head to a point, but what about when a second developer comes and looks at that code? Or what happens when you come back to the code after six months (or even two weeks)? Where do you go to see how the app is structured? You have to go spelunking into views for answers.
+
+</p>
+<p>I prefer that the model is the explicit documentation on what state is stored. 
+
+</p>
+<p>See how this could be in HumanModel:
+
+</p>
+<p>file: <code>models/user.js</code>
+
+</p>
+<pre><code class="javascript">var HumanModel = require(&apos;human-model&apos;);
+
+module.exports = HumanModel.define({
+  type: &apos;user&apos;,
+  // Our properties from the server
+  props: {
+    // Here is the shorthand syntax for defining a property:
+    // first is type, second is required, last is default value.
+    firstName: [&apos;string&apos;, true, &apos;&apos;],
+    lastName: [&apos;string&apos;, true, &apos;&apos;],
+    // You can also be even more explicit
+    // and pass and object
+    middleName: {
+      type: &apos;string&apos;,
+      required: true,
+      default: &apos;&apos;
+    },
+    // Or less specific the minimum 
+    // you need is a type, for example:
+    isAwesome: &apos;boolean&apos;
+  },
+  // Session properties are defined and work exactly
+  // the same way as properties. The difference is 
+  // they&apos;re not sent to the server on save(), etc.
+  session: {
+    selected: [&apos;boolean&apos;, true, false]
+  },
+  // Derived properties are getters constructed from
+  // other information. (You cannot set a derived property, this is intentional)
+  derived: {
+    // The name of the derived property.
+    // In this case referencing &quot;model.fullName&quot;
+    // would give us the result of calling the
+    // function below
+    fullName: {
+      // We specify which properties
+      // this is dependent on (meaning if they change
+      // so does the derived property)
+      deps: [&apos;firstName&apos;, &apos;lastName&apos;],
+      fn: function () {
+        return (this.firstName + &apos; &apos; + this.lastName).trim();
+      },
+      // We can optionally cache the result. Doing this
+      // means it won&apos;t run the function to return the result
+      // unless one of the dependency values has changed since 
+      // the last time it was run. This feature can lead to 
+      // dramatic performance improvements over plain Backbone.
+      cache: true
+    }
+  }
+});</code></pre>
+<p>file: <code>hypothetical_app.js</code>
+
+</p>
+<pre><code class="javascript">// Grab our user definition from above
+var User = require(&apos;./models/user&apos;);
+
+// Create an instance of that user model
+var model = new User();
+
+// I can now know that it&apos;s got a value for firstName
+console.log(model.firstName); // prints: &apos;&apos;
+
+// and it&apos;s a predictable type
+console.log(typeof model.firstName); // prints: &apos;string&apos;
+
+// and we can&apos;t just set it to something else
+model.firstName = [&apos;hi&apos;]; // &lt;- this won&apos;t work and will throw and error
+
+// but we can set it as a string
+model.firstName = &apos;Henrik&apos;;
+console.log(model.firstName); // prints: &apos;Henrik&apos;
+
+// Here&apos;s the *awesome* part I _can&apos;t_ set a property that isn&apos;t defined.
+// So if I fatfinger the property name, it won&apos;t stick.
+// *Note what HumanModel does when calling `set()` with undeclared attributes
+// can be configured. See human-model docs for more.
+model.frstName = &apos;Henrik&apos;;</code></pre>
+<p>By enforcing this level of property definitions we always make sure that our models, which is the &quot;backbone&quot; of the app (<em>wink</em>), are readable pieces of code that help document how the app is put together.
+
+
+</p>
+<h4>5. Better handling of lists/dates</h4>
+<p>Another argument for using getters/setters for models is that it makes it possible to observe change to properties that are Objects. At least when using things like arrays and dates as properties.
+
+</p>
+<p>Since arrays and dates are Objects in JS, they&apos;re passed by reference.
+
+</p>
+<p>So, what happens if we want to store a list of IDs as a property of a user?
+
+</p>
+<p>In Backbone, how would we get a <code>change</code> event?
+
+</p>
+<pre><code class="javascript">var model = new Backbone.Model();
+
+model.set(&apos;ids&apos;, [&apos;23&apos;, &apos;25&apos;, &apos;47&apos;]);
+
+// If we want to get them and change them
+var myIds = model.get(&apos;ids&apos;);
+
+// If we now change it...
+myIds.reverse();
+
+// ...and set it back
+model.set(&apos;ids&apos;, myIds);
+
+// we would never get a change event from Backbone</code></pre>
+<p>If you understand JavaScript you&apos;ll realize this isn&apos;t a flaw in Backbone, it&apos;s just because JavaScript passes objects by reference. 
+
+</p>
+<p>As a result, when Backbone gets the &quot;set&quot; event it just compares <code>this.get(&apos;ids&apos;) === newIds</code> which will always be true, because you&apos;re comparing the same object not a copy of it.
+
+</p>
+<p>The same is true with dates. If you get a date object, call a method on it, like <code>setHours()</code> and set it back, you&apos;d never get a change event. So you wouldn&apos;t know you need to update your view. 
+
+</p>
+<p>We can solve this with getters/setters in cases where we <em>know</em> we want this behavior by forcing the model to always give us a new object when we access the property.
+
+
+</p>
+<pre><code class="javascript">var HumanModel = require(&apos;human-model&apos;);
+
+// Set up a simple model definition
+var DemoModel = HumanModel.define({
+  props: {
+    ids: [&apos;array&apos;, true, []]
+  }
+});
+
+
+// Then we use it
+var model = new DemoModel();
+
+// Get our array
+var arr = model.ids;
+
+// Modify it back
+arr.push(&apos;something&apos;);
+
+// This now triggers a change event
+model.ids = arr;</code></pre>
+<h3>Summarizing models</h3>
+<p>Models should contain the following:
+
+</p>
+<ol>
+<li>Properties that we get from the API</li>
+<li>Properties that we need in order to track client state (selected, etc.)</li>
+<li>Mechanisms for validating their own data integrity</li>
+<li>Methods we can call to update or delete corresponding models on the server</li>
+<li>Convenient accessors (a.k.a. derived properties) that describe or process the properties in some way to allow re-use</li>
+<li>Child collections (if applicable)</li>
+</ol>
+<p>Models should <em>never</em> contain:
+
+</p>
+<ol>
+<li>Anything that manipulates the DOM</li>
+<li>Any DOM event handlers</li>
+</ol>
+</main>
+    <footer><span class="prev"><a href="/book/ch05-eventification.html">ch05 - eventification</a></span><span class="next"><a href="/book/ch07-views.html">ch07 - views</a></span>
+    </footer>
+  </body>
+  <script src="/static/js/highlight.pack.js"></script>
+  <script src="/static/js/slugger.js"></script>
+  <script src="/static/js/setup.js"></script>
+  <script src="http://static.andyet.com/tag.js"></script>
+</html>

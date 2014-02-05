@@ -7,6 +7,8 @@ var generateJSON = require('./lib/json');
 var rmrf = require('rimraf');
 var templateGlobals = {};
 var jadeTemplate = fs.readFileSync(__dirname + '/index.jade', 'utf8');
+var bookSrcDir = __dirname + '/../human-javascript';
+var buildDir = __dirname + '/book';
 var includes = [];
 
 // dump json folder
@@ -58,8 +60,10 @@ async.forEach(includes, function (repo, cb) {
 
     jade.render(jadeTemplate, {
         globals: templateGlobals,
-        pretty: true
+        pretty: true,
+        filename: __dirname + '/index.jade'
     }, function (err, html) {
+        if (err) throw err;
         fs.writeFileSync(__dirname + '/index.html', html, 'utf8');
     });
 

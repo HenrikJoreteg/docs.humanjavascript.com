@@ -1,27 +1,30 @@
 {
   "name": "docs.humanjavascript.com",
-  "version": "0.0.0",
   "description": "Documentation site for human javascript",
+  "version": "0.0.0",
+  "author": "Henrik Joreteg",
+  "dependencies": {
+    "async": "~0.2.9",
+    "bluebird": "*",
+    "jade": "~1.1.5",
+    "marked": "~0.1.9",
+    "request": "~2.33.0",
+    "rimraf": "",
+    "slugger": "0.0.3"
+  },
+  "devDependencies": {
+    "servedir": "*"
+  },
+  "license": "MIT",
   "main": "index.js",
   "repository": {
     "type": "git",
     "url": "henrikjoreteg/docs.humanjavascript.com"
   },
-  "dependencies": {
-    "marked": "~0.1.9",
-    "request": "~2.33.0",
-    "jade": "~1.1.5",
-    "async": "~0.2.9",
-    "bluebird": "*",
-    "rimraf": ""
-  },
-  "devDependencies": {
-    "servedir": "*"
-  },
   "scripts": {
-    "build": "node build.js && echo 'built index.html'",
+    "buildDocs": "node buildDocs.js && echo 'built index.html'",
+    "buildBook": "node buildBook.js && echo 'built book pages'",
+    "build": "npm run buildDocs && npm run buildBook",
     "start": "servedir"
-  },
-  "author": "Henrik Joreteg",
-  "license": "MIT"
+  }
 }
